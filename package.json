@@ -1,0 +1,20 @@
+{
+  "name": "discord-clone",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspaces",
+    "db:init": "psql -d discord_clone -f server/src/database/schema.sql",
+    "db:seed": "psql -d discord_clone -f server/src/database/seed.sql",
+    "db:reset": "psql -d discord_clone -f server/src/database/schema.sql && psql -d discord_clone -f server/src/database/seed.sql"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
