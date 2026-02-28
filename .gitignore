@@ -35,3 +35,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 temp/
+Mingle.postman_collection.json
