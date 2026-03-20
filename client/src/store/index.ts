@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getToken, setToken, removeToken } from '../lib/tokenStorage'
 import type { ServerWithChannels, UserProfile, Message } from '@discord/shared'
 
 // ── Types ─────────────────────────────────────────────
@@ -62,16 +63,16 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   // ── Auth ──────────────────────────
   user: null,
-  token: localStorage.getItem('mingle-token'),
-  isAuthenticated: !!localStorage.getItem('mingle-token'),
+  token: getToken(),
+  isAuthenticated: !!getToken(),
 
   setAuth: (user, token) => {
-    localStorage.setItem('mingle-token', token)
+    setToken(token)
     set({ user, token, isAuthenticated: true })
   },
 
   logout: () => {
-    localStorage.removeItem('mingle-token')
+    removeToken()
     set({
       user: null,
       token: null,
