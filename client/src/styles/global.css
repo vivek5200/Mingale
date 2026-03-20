@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* Discord Dark Theme via Tailwind v4 @theme */
+@theme {
+  /* Background colors */
+  --color-bg-primary: #313338;
+  --color-bg-secondary: #2b2d31;
+  --color-bg-tertiary: #1e1f22;
+  --color-bg-modifier-hover: #35373c;
+  --color-bg-modifier-active: #3f4147;
+  --color-bg-floating: #111214;
+
+  /* Text colors */
+  --color-text-primary: #f2f3f5;
+  --color-text-secondary: #b5bac1;
+  --color-text-muted: #949ba4;
+  --color-text-link: #00a8fc;
+
+  /* Brand / Accent */
+  --color-blurple: #5865f2;
+  --color-blurple-hover: #4752c4;
+  --color-green: #23a559;
+  --color-yellow: #fee75c;
+  --color-red: #ed4245;
+  --color-red-hover: #d83c3e;
+
+  /* Status */
+  --color-status-online: #23a559;
+  --color-status-idle: #f0b232;
+  --color-status-dnd: #ed4245;
+  --color-status-offline: #80848e;
+
+  /* Spacing */
+  --spacing-sidebar-width: 240px;
+  --spacing-server-bar: 72px;
+
+  /* Fonts */
+  --font-sans: 'Inter', 'GG Sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+}
+
+/* Base resets */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.375;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-bg-modifier-active);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-blurple);
+  color: white;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-blurple);
+  outline-offset: 2px;
+}
+
+/* Prevent text selection in UI chrome */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
