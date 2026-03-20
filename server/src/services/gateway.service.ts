@@ -49,17 +49,6 @@ JOIN servers s ON s.id = sm.server_id
 WHERE sm.user_id = $1;
 `;
 
-/**
- * Query to get ALL member IDs across all of the user's servers.
- * Used by assemblePresenceData() to build presenceMap + onlineMemberCount.
- */
-const ALL_MEMBERS_SQL = `
-SELECT DISTINCT sm2.user_id AS "userId", sm2.server_id AS "serverId"
-FROM server_members sm
-JOIN server_members sm2 ON sm2.server_id = sm.server_id
-WHERE sm.user_id = $1;
-`;
-
 interface GatewayServerRow {
   id: string;
   name: string;
@@ -91,7 +80,7 @@ interface GatewayServerRow {
  *
  * Flow (Section 7.3 "Hybrid Assembly"):
  *   1. SQL: servers, channels, member counts, voice states
- *   2. Presence: read from in-memory Map (Phase 3) or Redis (Phase 3+)
+ *   2. Presence: inverted lookup from presenceStore (NOT from DB member dump)
  *   3. Stitch together in Node.js → return as ReadyPayload
  */
 export async function assembleReadyPayload(
@@ -106,16 +95,13 @@ export async function assembleReadyPayload(
   // 2. Run the gateway SQL query (ONE query — all servers, channels, voice states)
   const serverResult = await pool.query<GatewayServerRow>(READY_SQL, [userId]);
 
-  // 3. Get all member IDs for presence assembly
-  const memberResult = await pool.query<{ userId: string; serverId: string }>(
-    ALL_MEMBERS_SQL,
-    [userId],
-  );
+  // 3. Extract server IDs for the inverted presence lookup
+  const serverIds = serverResult.rows.map((row) => row.id);
 
-  // 4. Assemble presence from in-memory Map (Section 7.3)
-  const { presenceMap, onlineCountByServer } = assemblePresenceData(
-    memberResult.rows,
-  );
+  // 4. Assemble presence from in-memory presenceStore (inverted lookup)
+  //    Starts from the SMALL set of online users, not the massive member table.
+  const { presenceMap, onlineCountByServer } =
+    await assemblePresenceData(serverIds);
 
   // 5. Stitch SQL + Presence into ReadyPayload
   const servers: ServerWithChannels[] = serverResult.rows.map((row) => ({
@@ -141,3 +127,4 @@ export async function assembleReadyPayload(
     presenceMap,
   };
 }
+

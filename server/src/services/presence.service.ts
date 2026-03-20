@@ -2,9 +2,14 @@
 //
 // ⚠️ Presence is NEVER stored in PostgreSQL (Section 7.3 "Presence Paradox").
 // Phase 3: In-memory Map (this file)
-// Phase 3+: Replace with Redis HSET (see ARCHITECTURE.md Section 7.3)
+// Phase 3+: Replace with Redis HSET/SCARD (see ARCHITECTURE.md Section 7.3)
+//
+// ⭐ SCALABILITY FIX: assemblePresenceData starts from the SMALL presenceStore
+// (only online users) and queries ONLY their server memberships. We never pull
+// the entire server_members table into Node.js memory.
 
 import type { PresenceStatus } from '@discord/shared';
+import { pool } from '../config/database.js';
 
 interface PresenceEntry {
   socketId: string;
@@ -37,24 +42,72 @@ export function getPresenceStatus(userId: string): PresenceStatus {
 }
 
 /**
- * Build presenceMap + onlineMemberCount for the READY payload (Section 7.3).
- * Takes an array of { serverId, userId } pairs and returns:
- *   - presenceMap: Record<userId, status> for all online users
- *   - onlineCountByServer: Map<serverId, count>
+ * SQL to find which of the currently-online users belong to the given servers.
+ * This is the INVERTED lookup — we start from the tiny online-user set,
+ * not from the massive server_members table.
+ *
+ * $1 = online user IDs (UUID[]), $2 = server IDs (UUID[])
+ * Result set size ≤ |online users| × |user's servers| — always small.
  */
-export function assemblePresenceData(
-  allMembers: Array<{ serverId: string; userId: string }>,
-): {
+const ONLINE_MEMBERS_SQL = `
+SELECT sm.user_id AS "userId", sm.server_id AS "serverId"
+FROM server_members sm
+WHERE sm.user_id = ANY($1)
+  AND sm.server_id = ANY($2);
+`;
+
+/**
+ * Build presenceMap + onlineMemberCount for the READY payload (Section 7.3).
+ *
+ * INVERTED LOOKUP — instead of pulling every member from the DB:
+ *   1. Read all online user IDs from the presenceStore (tiny — only active connections)
+ *   2. Query DB: "which of these online users belong to the given servers?"
+ *   3. Build presenceMap and onlineCountByServer from the small result
+ *
+ * Complexity: O(online_users) not O(total_members). Safe at any scale.
+ */
+export async function assemblePresenceData(
+  serverIds: string[],
+): Promise<{
   presenceMap: Record<string, PresenceStatus>;
   onlineCountByServer: Map<string, number>;
-} {
+}> {
   const presenceMap: Record<string, PresenceStatus> = {};
   const onlineCountByServer = new Map<string, number>();
 
-  for (const { serverId, userId } of allMembers) {
-    const entry = presenceStore.get(userId);
-    if (entry && entry.status !== 'offline') {
-      presenceMap[userId] = entry.status;
+  // If no servers, return early
+  if (serverIds.length === 0) {
+    return { presenceMap, onlineCountByServer };
+  }
+
+  // 1. Collect all online user IDs from the in-memory store
+  const onlineUserIds: string[] = [];
+  const onlineStatuses = new Map<string, PresenceStatus>();
+
+  for (const [userId, entry] of presenceStore) {
+    if (entry.status !== 'offline') {
+      onlineUserIds.push(userId);
+      onlineStatuses.set(userId, entry.status);
+    }
+  }
+
+  // If nobody is online, return early — no DB query needed
+  if (onlineUserIds.length === 0) {
+    return { presenceMap, onlineCountByServer };
+  }
+
+  // 2. Query DB: which of these online users belong to the given servers?
+  //    Result set ≤ |onlineUserIds| × |serverIds| — always small
+  const result = await pool.query<{ userId: string; serverId: string }>(
+    ONLINE_MEMBERS_SQL,
+    [onlineUserIds, serverIds],
+  );
+
+  // 3. Build presenceMap + onlineCountByServer from the small result
+  for (const { userId, serverId } of result.rows) {
+    const status = onlineStatuses.get(userId);
+    if (status) {
+      presenceMap[userId] = status;
       onlineCountByServer.set(
         serverId,
         (onlineCountByServer.get(serverId) ?? 0) + 1,
